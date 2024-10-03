@@ -1,7 +1,9 @@
 # Tatooine Raytracer - Normal Mapping Implementation
 
 
-https://github.com/user-attachments/assets/4016379c-6686-49e8-a700-0ffdcde18405
+<div align="center">
+  <a href="https://github.com/user-attachments/assets/4016379c-6686-49e8-a700-0ffdcde18405">Click here to view</a>
+</div>
 
 
 ## Overview
