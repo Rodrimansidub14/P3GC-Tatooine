@@ -1,5 +1,9 @@
 # Tatooine Raytracer - Normal Mapping Implementation
 
+
+https://github.com/user-attachments/assets/4016379c-6686-49e8-a700-0ffdcde18405
+
+
 ## Overview
 
 This project is a ray-traced rendering of a desert-like scene inspired by Tatooine from Star Wars, featuring two suns, sand dunes, and cubic structures. The scene incorporates **normal mapping** for more realistic surface details, such as simulating the appearance of sand dunes on a finite plane.
