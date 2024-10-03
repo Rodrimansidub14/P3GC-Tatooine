@@ -1,8 +1,6 @@
-// sphere.rs
-
 use nalgebra_glm::{Vec3, dot};
 use crate::material::Material;
-use crate::ray_intersect::{Intersect, RayIntersect, ObjectType};
+use crate::ray_intersect::{Intersect, RayIntersect};
 
 #[derive(Debug, Clone)]
 pub struct Sphere {
@@ -13,24 +11,12 @@ pub struct Sphere {
 
 impl Sphere {
     pub fn new(center: Vec3, radius: f32, material: Material) -> Self {
-        Sphere {
-            center,
-            radius,
-            material,
-        }
+        Sphere { center, radius, material }
     }
-
-    // Método para calcular las coordenadas UV para texturizado (puedes eliminarlo)
-    /*
-    pub fn get_uv(&self, point: &Vec3) -> (f32, f32) {
-        let hit_point = (point - self.center).normalize();
-        let u = 0.5 + hit_point.z.atan2(hit_point.x) / (2.0 * std::f32::consts::PI);
-        let v = 0.5 - hit_point.y.asin() / std::f32::consts::PI;
-        (u, v)
-    }
-    */
 }
 
+
+// Implementación del trait RayIntersect para la estructura Sphere
 impl RayIntersect for Sphere {
     fn ray_intersect(&self, ray_origin: &Vec3, ray_direction: &Vec3) -> Option<Intersect> {
         let oc = ray_origin - self.center;
@@ -56,13 +42,7 @@ impl RayIntersect for Sphere {
             let normal = (point - self.center).normalize();
             let distance = t;
 
-            Some(Intersect::new(
-                point,
-                normal,
-                distance,
-                self.material.clone(),
-                ObjectType::Sphere(self.clone()),
-            ))
+            Some(Intersect::new(point, normal, distance, self.material.clone()))
         } else {
             None
         }

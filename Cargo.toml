@@ -10,3 +10,4 @@ rayon = "1.5"
 image = "0.25.2" 
 minifb = "0.27.0"        # Biblioteca para la ventana y el framebuffer
 rand = "0.8"  # or the latest version
+once_cell = "1.20.1"

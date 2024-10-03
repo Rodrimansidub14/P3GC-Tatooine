@@ -1,4 +1,4 @@
-// main.rs
+// src/main.rs
 
 mod camera;
 mod color;
@@ -13,6 +13,7 @@ mod skybox;
 mod sphere;
 mod texture;
 
+extern crate image;
 use crate::camera::Camera;
 use crate::color::Color;
 use crate::cube::Cube;
@@ -25,25 +26,86 @@ use crate::skybox::Skybox;
 use crate::sphere::Sphere;
 use crate::texture::Texture;
 use minifb::{Key, KeyRepeat, MouseButton, Window, WindowOptions};
-use nalgebra::Point3; // Para manejar puntos 3D correctamente
+use nalgebra::Point3;
 use nalgebra::Vector3 as Vec3;
+use once_cell::sync::Lazy;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
+use nalgebra::Rotation3;
+
+static SANDSTONE_TEXTURE: Lazy<Arc<Texture>> =
+    Lazy::new(|| Arc::new(Texture::new("assets/sandstone_normal.png")));
+static CLAY_TEXTURE: Lazy<Arc<Texture>> =
+    Lazy::new(|| Arc::new(Texture::new("assets/mud_bricks.png")));
+static METAL_TEXTURE: Lazy<Arc<Texture>> =
+    Lazy::new(|| Arc::new(Texture::new("assets/tuff_bricks.png")));
+static RUSTED_METAL_TEXTURE: Lazy<Arc<Texture>> =
+    Lazy::new(|| Arc::new(Texture::new("assets/red_sandstone_carved.png")));
+static SAND_TEXTURE: Lazy<Arc<Texture>> = Lazy::new(|| Arc::new(Texture::new("assets/sand.png")));
+static SAND_NORMAL_MAP: Lazy<Arc<Texture>> =
+    Lazy::new(|| Arc::new(Texture::new("assets/rocky-dunes1_normal-ogl.png")));
+
 
 fn main() {
-    let mut framebuffer = Framebuffer::new(640, 480); // Resolución
-    let mut skybox = Skybox::new(); // Inicializa el skybox
+    // Inicialización del framebuffer y skybox
+    let mut framebuffer = Framebuffer::new(800, 600); // Puedes ajustar la resolución
+    let mut skybox = Skybox::new();
 
-    // Define el objetivo alrededor del cual orbitar
-    let target = Point3::new(0.5, 0.5, 0.5); // Centro del objeto (objetivo fijo)
+    // Define el objetivo alrededor del cual orbitar (por ejemplo, el centro de una estructura)
+    let target = Point3::new(0.0, 0.5, 0.0);
 
     // Inicializa la cámara con posición, objetivo y vector up
     let mut camera = Camera::new(
         Point3::new(0.0, 1.0, 5.0), // Posición de la cámara
-        target,                     // El objetivo fijo (punto central)
+        target,                     // Objetivo fijo (centro)
         Vec3::new(0.0, 1.0, 0.0),   // Vector up
     );
+    let sandstone_material = Material::new_with_texture(
+        Color::new(205, 170, 125),       // Default sandstone color
+        [0.5, 0.2, 0.01, 0.0],           // Albedo
+        5.0,                             // Specular
+        1.0,                             // Refractive index
+        Some(SANDSTONE_TEXTURE.clone()), // Use the sandstone texture
+        None,
+    );
+    let sand_material = Material::new_with_texture(
+        Color::new(205, 170, 125),       // Default sandstone color
+        [0.8, 0.2, 0.01, 0.0],           // Albedo
+        5.0,                             // Specular
+        1.0,                             // Refractive index
+        Some(SAND_TEXTURE.clone()),      // Use the sandstone texture
+        Some(SAND_NORMAL_MAP.clone()),   // Use the normal map for bumps
+    );
+    let clay_material = Material::new_with_texture(
+        Color::new(160, 82, 45),    // Default clay color
+        [0.7, 0.1, 0.1, 0.0],       // Albedo
+        15.0,                       // Specular
+        1.0,                        // Refractive index
+        Some(CLAY_TEXTURE.clone()), // Use the clay texture
+        None,
 
-    // Define materiales para los soles
+    );
+
+    let metal_material = Material::new_with_texture(
+        Color::new(192, 192, 192),   // Default metal color
+        [0.5, 0.1, 0.1, 0.0],        // Albedo
+        250.0,                       // Specular
+        1.0,                         // Refractive index
+        Some(METAL_TEXTURE.clone()), // Use the metal texture
+        None,
+
+    );
+
+    let rusted_metal_material = Material::new_with_texture(
+        Color::new(139, 69, 19),            // Default rusted metal color
+        [0.5, 0.4, 0.1, 0.0],               // Albedo
+        100.0,                              // Specular
+        1.0,                                // Refractive index
+        Some(RUSTED_METAL_TEXTURE.clone()), // Use the rusted metal texture
+        None,
+    );
+
+    // Definir materiales para los soles
     let day_sun_material = Material::yellow_sun();
     let night_sun1_material = Material::red_giant();
     let night_sun2_material = Material::yellow_sun(); // Puedes definir otro material si lo prefieres
@@ -51,55 +113,60 @@ fn main() {
     // Inicializa los soles con el material de día
     let mut suns = vec![
         Sphere {
-            center: Vec3::new(1.0, 7.0, -6.0), // Posición del primer sol
+            center: Vec3::new(1.0, 12.0, -6.0), // Posición del primer sol
             radius: 1.0,
             material: day_sun_material.clone(),
         },
         Sphere {
-            center: Vec3::new(6.0, 5.0, -7.5), // Posición del segundo sol
+            center: Vec3::new(6.0, 8.0, -7.5), // Posición del segundo sol
             radius: 0.7,
             material: day_sun_material.clone(),
         },
     ];
 
-    // Inicializa las luces asociadas a los soles
-    let mut lights = vec![
-        Light::new(
-            Vec3::new(1.0, 7.0, -6.0),
-            day_sun_material.emissive,
-            2.0, // Intensidad para el día
-        ),
-        Light::new(
-            Vec3::new(6.0, 5.0, -7.5),
-            day_sun_material.emissive,
-            1.5, // Intensidad para el día
-        ),
-    ];
+    let fill_light = Light::new(
+        Vec3::new(-10.0, 5.0, 10.0), // Posición de la luz de relleno, ajusta según tu escena
+        Color::new(219, 153, 90),   // Color blanco o un color tenue para la luz
+        2.0,                         // Intensidad baja para que no sea tan dominante
+    );
 
+    let mut lights = vec![
+        // Luz principal (soles)
+        Light::new(Vec3::new(1.0, 7.0, -6.0), day_sun_material.emissive, 2.0),
+        Light::new(Vec3::new(6.0, 5.0, -7.5), day_sun_material.emissive, 1.5),
+        // Añade la luz de relleno
+        fill_light,
+    ];
     // Crea el plano del suelo
+    // Crear el plano del suelo con el material de arena
     let ground_plane = Plane::new(
         Vec3::new(0.0, 0.0, 0.0), // Posición en Y = 0
         Vec3::new(0.0, 1.0, 0.0), // Normal apuntando hacia arriba
-        Material::sand(),         // Material de arena para el suelo
+        sand_material.clone(),    // Material de arena para el suelo
     );
+
     let planes = vec![ground_plane];
 
     // Crea cubos para la estructura
     let cubes = vec![
         // Arenisca para la cúpula
-        Cube::new(Point3::new(0.0, 0.5, 0.0), 1.0, Material::sandstone()), // Bloque central
-        Cube::new(Point3::new(1.0, 0.5, 0.0), 1.0, Material::sandstone()), // Bloque lateral (derecha)
-        Cube::new(Point3::new(-1.0, 0.5, 0.0), 1.0, Material::sandstone()), // Bloque lateral (izquierda)
-        Cube::new(Point3::new(0.0, 0.5, 1.0), 1.0, Material::sandstone()),  // Bloque trasero
-        Cube::new(Point3::new(0.0, 0.5, -1.0), 1.0, Material::sandstone()), // Bloque frontal
+        Cube::new(Point3::new(0.0, 0.5, 0.0), 1.0, sandstone_material.clone()), // Bloque central
+        Cube::new(Point3::new(1.0, 0.5, 0.0), 1.0, sandstone_material.clone()), // Bloque lateral (derecha)
+        Cube::new(Point3::new(-1.0, 0.5, 0.0), 1.0, sandstone_material.clone()), // Bloque lateral (izquierda)
+        Cube::new(Point3::new(0.0, 0.5, 1.0), 1.0, sandstone_material.clone()),  // Bloque trasero
+        Cube::new(Point3::new(0.0, 0.5, -1.0), 1.0, sandstone_material.clone()), // Bloque frontal
         // Segunda capa de la cúpula, usando arcilla para detalles
-        Cube::new(Point3::new(0.5, 1.0, 0.0), 1.0, Material::clay()), // Bloque superior lateral (derecha)
-        Cube::new(Point3::new(-0.5, 1.0, 0.0), 1.0, Material::clay()), // Bloque superior lateral (izquierda)
-        Cube::new(Point3::new(0.0, 1.0, 0.5), 1.0, Material::clay()),  // Bloque superior trasero
-        Cube::new(Point3::new(0.0, 1.0, -0.5), 1.0, Material::clay()), // Bloque superior frontal
+        Cube::new(Point3::new(0.5, 1.0, 0.0), 1.0, clay_material.clone()), // Bloque superior lateral (derecha)
+        Cube::new(Point3::new(-0.5, 1.0, 0.0), 1.0, clay_material.clone()), // Bloque superior lateral (izquierda)
+        Cube::new(Point3::new(0.0, 1.0, 0.5), 1.0, clay_material.clone()), // Bloque superior trasero
+        Cube::new(Point3::new(0.0, 1.0, -0.5), 1.0, clay_material.clone()), // Bloque superior frontal
         // Detalles adicionales (cajas metálicas) y metal oxidado para desgaste
-        Cube::new(Point3::new(2.5, 0.25, 0.0), 0.5, Material::metal()), // Caja metálica (derecha)
-        Cube::new(Point3::new(-2.5, 0.25, 0.0), 0.5, Material::rusted_metal()), // Caja de metal oxidado (izquierda)
+        Cube::new(Point3::new(2.5, 0.25, 0.0), 0.5, metal_material.clone()), // Caja metálica (derecha)
+        Cube::new(
+            Point3::new(-2.5, 0.25, 0.0),
+            0.5,
+            rusted_metal_material.clone(),
+        ), // Caja de metal oxidado (izquierda)
     ];
 
     // Crea la ventana
@@ -121,8 +188,6 @@ fn main() {
     // Variables para rastrear la posición del mouse y el tiempo entre frames
     let mut last_mouse_pos = None;
     let mut last_frame = Instant::now();
-    // En main.rs
-
 
     // Bucle principal de renderizado
     while window.is_open() && !window.is_key_down(Key::Escape) {
@@ -207,11 +272,11 @@ fn main() {
         // Renderizar la escena
         render(
             &mut framebuffer,
-            &suns,
-            &cubes,
-            &planes,
+            &suns[..],   // Pass as slice
+            &cubes[..],  // Pass as slice
+            &planes[..], // Pass as slice
             &camera,
-            &suns,
+            &suns[..], // Pass as slice
             &lights,
             &skybox,
         );

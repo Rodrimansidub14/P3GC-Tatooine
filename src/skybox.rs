@@ -1,6 +1,7 @@
-use crate::color::Color;
-use crate::framebuffer::Framebuffer;
+// src/skybox.rs
+
 use nalgebra_glm::Vec3;
+use crate::color::Color;
 
 pub struct Skybox {
     pub is_day: bool,
@@ -9,59 +10,128 @@ pub struct Skybox {
 impl Skybox {
     pub fn new() -> Self {
         Skybox {
-            is_day: true, // Start with day mode
+            is_day: true, // Comienza en modo día
         }
     }
 
-    // Toggle between day and night sky
+    // Alterna entre día y noche
     pub fn toggle_day_night(&mut self) {
         self.is_day = !self.is_day;
         if self.is_day {
-            println!("Switched to day sky.");
+            println!("Cambiado a cielo de día.");
         } else {
-            println!("Switched to night sky.");
+            println!("Cambiado a cielo de atardecer/noche.");
         }
     }
 
-    // Get color based on ray direction
+    // Genera el color del cielo basado en la dirección del rayo
     pub fn get_color(&self, ray_direction: &Vec3) -> Color {
         if self.is_day {
             self.generate_day_color_from_direction(ray_direction)
         } else {
-            self.generate_night_color_from_direction(ray_direction)
+            self.generate_sunset_color_from_direction(ray_direction)
         }
     }
 
-    // Generate day sky color based on direction
+    // Genera el color para el cielo de día
     fn generate_day_color_from_direction(&self, ray_direction: &Vec3) -> Color {
-        let t = (ray_direction.y + 1.0) / 2.0; // Normalize from -1 to 1 to 0 to 1
-
-        // Interpolate between deep sky blue and light sky blue
-        let top_color = Color::new(70, 130, 180); // Deep sky blue
-        let horizon_color = Color::new(135, 206, 250); // Light sky blue
-
-        Color {
-            r: (top_color.r as f32 * (1.0 - t) + horizon_color.r as f32 * t) as u8,
-            g: (top_color.g as f32 * (1.0 - t) + horizon_color.g as f32 * t) as u8,
-            b: (top_color.b as f32 * (1.0 - t) + horizon_color.b as f32 * t) as u8,
-        }
+        let t = (ray_direction.y + 1.0) / 2.0;
+    
+        // Define the four colors for the gradient
+        let top_color = Color::new(135, 206, 235);        // Sky blue (top of the sky)
+        let middle_top_color = Color::new(176, 224, 230); // Lighter blue
+        let middle_bottom_color = Color::new(250, 235, 215); // Very light, approaching white
+        let horizon_color = Color::new(255, 255, 255);    // White (at the horizon)
+    
+        let color = if t > 0.66 {
+            // Interpolate between top_color and middle_top_color
+            let factor = (t - 0.66) * 3.0;
+            Color {
+                r: (top_color.r as f32 * factor + middle_top_color.r as f32 * (1.0 - factor)) as u8,
+                g: (top_color.g as f32 * factor + middle_top_color.g as f32 * (1.0 - factor)) as u8,
+                b: (top_color.b as f32 * factor + middle_top_color.b as f32 * (1.0 - factor)) as u8,
+            }
+        } else if t > 0.33 {
+            // Interpolate between middle_top_color and middle_bottom_color
+            let factor = (t - 0.33) * 3.0;
+            Color {
+                r: (middle_top_color.r as f32 * factor + middle_bottom_color.r as f32 * (1.0 - factor)) as u8,
+                g: (middle_top_color.g as f32 * factor + middle_bottom_color.g as f32 * (1.0 - factor)) as u8,
+                b: (middle_top_color.b as f32 * factor + middle_bottom_color.b as f32 * (1.0 - factor)) as u8,
+            }
+        } else {
+            // Interpolate between middle_bottom_color and horizon_color
+            let factor = t * 3.0;
+            Color {
+                r: (middle_bottom_color.r as f32 * factor + horizon_color.r as f32 * (1.0 - factor)) as u8,
+                g: (middle_bottom_color.g as f32 * factor + horizon_color.g as f32 * (1.0 - factor)) as u8,
+                b: (middle_bottom_color.b as f32 * factor + horizon_color.b as f32 * (1.0 - factor)) as u8,
+            }
+        };
+    
+        color
     }
+    
 
-    // Generate night sky color based on direction
-    fn generate_night_color_from_direction(&self, ray_direction: &Vec3) -> Color {
-        let t = (ray_direction.y + 1.0) / 2.0; // Normalize from -1 to 1 to 0 to 1
+    // Genera el color para el cielo de atardecer/noche
+    fn generate_sunset_color_from_direction(&self, ray_direction: &Vec3) -> Color {
+        let t = (ray_direction.y + 1.0) / 2.0;
+    
+        // Define the four colors for sunset gradient
+        let top_color = Color::new(138, 68, 94);        // Red-orange (top of the sky)
+        let middle_top_color = Color::new(126,67,95);  // Orange
+        let middle_bottom_color = Color::new(248, 90, 62); // Light peach
+        let horizon_color = Color::new(255,119,51);    // Yellow (at the horizon)
+    
+        let color = if t > 0.66 {
+            // Interpolate between top_color and middle_top_color
+            let factor = (t - 0.66) * 3.0;
+            Color {
+                r: (top_color.r as f32 * factor + middle_top_color.r as f32 * (1.0 - factor)) as u8,
+                g: (top_color.g as f32 * factor + middle_top_color.g as f32 * (1.0 - factor)) as u8,
+                b: (top_color.b as f32 * factor + middle_top_color.b as f32 * (1.0 - factor)) as u8,
+            }
+        } else if t > 0.33 {
+            // Interpolate between middle_top_color and middle_bottom_color
+            let factor = (t - 0.33) * 3.0;
+            Color {
+                r: (middle_top_color.r as f32 * factor + middle_bottom_color.r as f32 * (1.0 - factor)) as u8,
+                g: (middle_top_color.g as f32 * factor + middle_bottom_color.g as f32 * (1.0 - factor)) as u8,
+                b: (middle_top_color.b as f32 * factor + middle_bottom_color.b as f32 * (1.0 - factor)) as u8,
+            }
+        } else {
+            // Interpolate between middle_bottom_color and horizon_color
+            let factor = t * 3.0;
+            Color {
+                r: (middle_bottom_color.r as f32 * factor + horizon_color.r as f32 * (1.0 - factor)) as u8,
+                g: (middle_bottom_color.g as f32 * factor + horizon_color.g as f32 * (1.0 - factor)) as u8,
+                b: (middle_bottom_color.b as f32 * factor + horizon_color.b as f32 * (1.0 - factor)) as u8,
+            }
+        };
+    
+        color
+    }
+    
 
-        // Interpolate between dark blue and black
-        // Línea 59
-        let top_color = Color::new(170, 108, 102); // Azul oscuro
+    // Renderiza el skybox en el framebuffer
+    pub fn render_skybox(&self, framebuffer: &mut crate::framebuffer::Framebuffer) {
+        for y in 0..framebuffer.height {
+            for x in 0..framebuffer.width {
+                // Coordenadas normalizadas
+                let screen_x = (2.0 * x as f32) / framebuffer.width as f32 - 1.0;
+                let screen_y = -(2.0 * y as f32) / framebuffer.height as f32 + 1.0;
 
-        // Línea 60
-        let horizon_color = Color::new(136, 97, 124); // Blanco cerca del horizonte
+                // Asumiendo una cámara con FOV de 90 grados
+                let fov = std::f32::consts::FRAC_PI_2;
+                let aspect_ratio = framebuffer.width as f32 / framebuffer.height as f32;
+                let screen_x = screen_x * aspect_ratio * fov.tan();
+                let screen_y = screen_y * fov.tan();
 
-        Color {
-            r: (top_color.r as f32 * (1.0 - t) + horizon_color.r as f32 * t) as u8,
-            g: (top_color.g as f32 * (1.0 - t) + horizon_color.g as f32 * t) as u8,
-            b: (top_color.b as f32 * (1.0 - t) + horizon_color.b as f32 * t) as u8,
+                let ray_direction = Vec3::new(screen_x, screen_y, -1.0).normalize();
+
+                let color = self.get_color(&ray_direction);
+                framebuffer.set_pixel(x as usize, y as usize, color.to_hex());
+            }
         }
     }
 }

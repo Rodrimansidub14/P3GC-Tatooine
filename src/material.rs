@@ -1,128 +1,106 @@
-// material.rs
-
 use crate::color::Color;
+use crate::texture::Texture;
 use std::sync::Arc;
-use std::cmp::PartialEq;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Material {
-    pub color: Color,
-    pub albedo: [f32; 4], // [difuso, especular, reflectividad, transparencia]
-    pub specular: f32,
-    pub refractive_index: f32,
-    pub emissive: Color,
+    pub color: Color,                   // Default color (used if no texture is applied)
+    pub albedo: [f32; 4],               // [diffuse, specular, reflectivity, transparency]
+    pub specular: f32,                  // Specular intensity for reflections
+    pub refractive_index: f32,          // Refractive index for transparency/refraction
+    pub emissive: Color,                // Color for emissive materials
+    pub has_texture: bool,              // If true, the material uses a texture
+    pub texture: Option<Arc<Texture>>,  // Optional texture for materials
+    pub normal_map: Option<Arc<Texture>> // Optional normal map for materials
 }
-
-
 
 impl Material {
     pub fn black() -> Self {
         Material {
-            color: Color::new(0, 0, 0), // Color negro
+            color: Color::new(0, 0, 0),
             albedo: [0.0, 0.0, 0.0, 0.0],
             specular: 0.0,
             refractive_index: 1.0,
             emissive: Color::new(0, 0, 0),
+            has_texture: false,
+            texture: None,
+            normal_map: None,
         }
     }
 
-    pub fn sand() -> Self {
+    pub fn new_with_texture(
+        color: Color,
+        albedo: [f32; 4],
+        specular: f32,
+        refractive_index: f32,
+        texture: Option<Arc<Texture>>,
+        normal_map: Option<Arc<Texture>>, // Added normal map as a parameter
+    ) -> Self {
         Material {
-            color: Color::new(194, 178, 128),
-            albedo: [0.9, 0.1, 0.0, 0.0], // Reflectividad y transparencia en 0.0
-            specular: 10.0,
-            refractive_index: 1.0,
+            color,
+            albedo,
+            specular,
+            refractive_index,
             emissive: Color::new(0, 0, 0),
+            has_texture: texture.is_some(),
+            texture,
+            normal_map,
         }
     }
 
-    pub fn metal() -> Self {
+    pub fn new(
+        color: Color,
+        albedo: [f32; 4],
+        specular: f32,
+        refractive_index: f32,
+    ) -> Self {
         Material {
-            color: Color::new(192, 192, 192),
-            albedo: [0.6, 0.3, 0.1, 0.0], // Reflectividad reducida a 0.1
-            specular: 250.0,
-            refractive_index: 1.0,
+            color,
+            albedo,
+            specular,
+            refractive_index,
             emissive: Color::new(0, 0, 0),
+            has_texture: false,
+            texture: None,
+            normal_map: None, // Set as None for materials without a normal map
         }
     }
 
-    pub fn sandstone() -> Self {
-        Material {
-            color: Color::new(205, 170, 125),
-            albedo: [0.9, 0.2, 0.0, 0.0], // Reflectividad y transparencia en 0.0
-            specular: 50.0,
-            refractive_index: 1.0,
-            emissive: Color::new(0, 0, 0),
+    // Function to get the diffuse color based on texture coordinates (u, v)
+    pub fn get_diffuse_color(&self, u: f32, v: f32) -> Color {
+        if self.has_texture {
+            if let Some(texture) = &self.texture {
+                let x = (u * (texture.width as f32 - 1.0)) as usize;
+                let y = ((1.0 - v) * (texture.height as f32 - 1.0)) as usize;
+                return texture.get_color(x, y);
+            }
         }
-    }
-
-    pub fn clay() -> Self {
-        Material {
-            color: Color::new(160, 82, 45),
-            albedo: [0.7, 0.3, 0.0, 0.0], // Reflectividad y transparencia en 0.0
-            specular: 15.0,
-            refractive_index: 1.0,
-            emissive: Color::new(0, 0, 0),
-        }
-    }
-
-    pub fn wood() -> Self {
-        Material {
-            color: Color::new(139, 69, 19), // Color de madera
-            albedo: [0.8, 0.2, 0.0, 0.0], // Reflectividad y transparencia en 0.0
-            specular: 50.0,
-            refractive_index: 1.0,
-            emissive: Color::black(),
-        }
-    }
-
-    pub fn rusted_metal() -> Self {
-        Material {
-            color: Color::new(139, 69, 19),
-            albedo: [0.6, 0.3, 0.1, 0.0], // Reflectividad reducida a 0.1
-            specular: 100.0,
-            refractive_index: 1.0,
-            emissive: Color::new(0, 0, 0),
-        }
-    }
-
-    pub fn glass() -> Self {
-        Material {
-            color: Color::new(200, 200, 255),
-            albedo: [0.0, 0.5, 0.1, 0.8], // Transparencia alta
-            specular: 250.0,
-            refractive_index: 1.5,
-            emissive: Color::new(0, 0, 0),
-        }
-    }
-
-    pub fn concrete() -> Self {
-        Material {
-            color: Color::new(130, 130, 130),
-            albedo: [0.8, 0.2, 0.0, 0.0], // Reflectividad y transparencia en 0.0
-            specular: 10.0,
-            refractive_index: 1.0,
-            emissive: Color::new(0, 0, 0),
-        }
+        self.color
     }
 
     pub fn yellow_sun() -> Self {
         Material {
-            color: Color::new(255, 255, 102),
-            albedo: [0.9, 0.1, 0.0, 0.0], // Reflectividad y transparencia en 0.0
+            color: Color::new(255, 255, 102), // Yellow for the sun
+            albedo: [1.0, 0.0, 0.0, 0.0],
             specular: 250.0,
             refractive_index: 1.0,
             emissive: Color::new(255, 255, 102),
+            has_texture: false,
+            texture: None,
+            normal_map: None, // Suns typically don't need normal maps
         }
     }
 
     pub fn red_giant() -> Self {
         Material {
-            color: Color::new(255, 69, 0),
-            albedo: [0.8, 0.2, 0.0, 0.0], // Reflectividad y transparencia en 0.0
+            color: Color::new(255, 69, 0),    // Red-orange for the giant sun
+            albedo: [1.0, 0.0, 0.0, 0.0],
             specular: 200.0,
             refractive_index: 1.0,
             emissive: Color::new(255, 69, 0),
+            has_texture: false,
+            texture: None,
+            normal_map: None,
         }
     }
 }

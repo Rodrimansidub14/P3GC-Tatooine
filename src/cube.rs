@@ -1,7 +1,7 @@
-// src/cube.rs
-use nalgebra::{Point3, Vector3 as Vec3};
 use crate::material::Material;
-use crate::camera::Camera;
+use crate::ray_intersect::{Intersect, RayIntersect};
+use nalgebra::{Point3, Vector3 as Vec3};
+
 #[derive(Debug, Clone)]
 pub struct Cube {
     pub center: Point3<f32>,
@@ -9,19 +9,69 @@ pub struct Cube {
     pub material: Material,
 }
 
-
-// src/cube.rs
 impl Cube {
-    pub fn ray_intersect(&self, ray_origin: &Vec3<f32>, ray_direction: &Vec3<f32>) -> Option<(f32, Vec3<f32>)> {
+    pub fn new(center: Point3<f32>, size: f32, material: Material) -> Self {
+        Cube {
+            center,
+            size,
+            material,
+        }
+    }
+
+    // Method to compute UV coordinates for texturing
+    pub fn get_uv(&self, point: &Vec3<f32>, normal: &Vec3<f32>) -> (f32, f32) {
+        let half_size = self.size / 2.0;
+        let local_point = point - self.center.coords;
+        let (u, v) = if normal.x.abs() > 0.99 {
+            // Faces on X axis
+            (
+                (local_point.z + half_size) / self.size,
+                (local_point.y + half_size) / self.size,
+            )
+        } else if normal.y.abs() > 0.99 {
+            // Faces on Y axis
+            (
+                (local_point.x + half_size) / self.size,
+                (local_point.z + half_size) / self.size,
+            )
+        } else {
+            // Faces on Z axis
+            (
+                (local_point.x + half_size) / self.size,
+                (local_point.y + half_size) / self.size,
+            )
+        };
+        (u.fract(), v.fract()) // Ensure the coordinates are between 0 and 1 (texture wrapping)
+    }
+}
+
+// Implementación del trait RayIntersect para la estructura Cube
+impl RayIntersect for Cube {
+    fn ray_intersect(
+        &self,
+        ray_origin: &Vec3<f32>,
+        ray_direction: &Vec3<f32>,
+    ) -> Option<Intersect> {
         let half_size = self.size / 2.0;
         let min_bound = self.center.coords - Vec3::new(half_size, half_size, half_size);
         let max_bound = self.center.coords + Vec3::new(half_size, half_size, half_size);
 
-        // Evitar divisiones por cero
         let dir_fraction = Vec3::new(
-            if ray_direction.x != 0.0 { 1.0 / ray_direction.x } else { f32::INFINITY },
-            if ray_direction.y != 0.0 { 1.0 / ray_direction.y } else { f32::INFINITY },
-            if ray_direction.z != 0.0 { 1.0 / ray_direction.z } else { f32::INFINITY },
+            if ray_direction.x != 0.0 {
+                1.0 / ray_direction.x
+            } else {
+                f32::INFINITY
+            },
+            if ray_direction.y != 0.0 {
+                1.0 / ray_direction.y
+            } else {
+                f32::INFINITY
+            },
+            if ray_direction.z != 0.0 {
+                1.0 / ray_direction.z
+            } else {
+                f32::INFINITY
+            },
         );
 
         let t1 = (min_bound.x - ray_origin.x) * dir_fraction.x;
@@ -39,57 +89,26 @@ impl Cube {
         }
 
         let t = if tmin < 0.0 { tmax } else { tmin };
-
-        // Calcular el punto de impacto
         let hit_point = ray_origin + ray_direction * t;
+        let normal = (hit_point - self.center.coords).normalize();
 
-        // Calcular la normal basándose en qué cara fue impactada
-        let epsilon = 1e-5; // Aumentar epsilon para mayor tolerancia
-        let mut normal = Vec3::zeros();
+        // Calculate UV coordinates for cube faces
+        let (u, v) = self.get_uv(&hit_point, &normal);
 
-        if (hit_point.x - min_bound.x).abs() < epsilon {
-            normal = Vec3::new(-1.0, 0.0, 0.0);
-        } else if (hit_point.x - max_bound.x).abs() < epsilon {
-            normal = Vec3::new(1.0, 0.0, 0.0);
-        } else if (hit_point.y - min_bound.y).abs() < epsilon {
-            normal = Vec3::new(0.0, -1.0, 0.0);
-        } else if (hit_point.y - max_bound.y).abs() < epsilon {
-            normal = Vec3::new(0.0, 1.0, 0.0);
-        } else if (hit_point.z - min_bound.z).abs() < epsilon {
-            normal = Vec3::new(0.0, 0.0, -1.0);
-        } else if (hit_point.z - max_bound.z).abs() < epsilon {
-            normal = Vec3::new(0.0, 0.0, 1.0);
+        // Get texture color if available
+        let color = if let Some(texture) = &self.material.texture {
+            let u_pixel = (u * (texture.width - 1) as f32).round() as usize;
+            let v_pixel = (v * (texture.height - 1) as f32).round() as usize;
+            texture.as_ref().get_color(u_pixel, v_pixel) // Dereference Arc to get the inner Texture
         } else {
-            // Si no se encuentra una normal, retornar None
-            return None;
-        }
-
-        Some((t, normal))
-    }
-
-
-
-    // Method to compute UV coordinates for texturing
-    pub fn get_uv(&self, point: &Vec3<f32>, normal: &Vec3<f32>) -> (f32, f32) {
-        let half_size = self.size / 2.0;
-        let local_point = point - self.center.coords;
-        let (u, v) = if normal.x.abs() > 0.99 {
-            // Faces on X axis
-            ((local_point.z + half_size) / self.size, (local_point.y + half_size) / self.size)
-        } else if normal.y.abs() > 0.99 {
-            // Faces on Y axis
-            ((local_point.x + half_size) / self.size, (local_point.z + half_size) / self.size)
-        } else {
-            // Faces on Z axis
-            ((local_point.x + half_size) / self.size, (local_point.y + half_size) / self.size)
+            self.material.color
         };
-        (u.fract(), v.fract())
-    }
-    pub fn new(center: Point3<f32>, size: f32, material: Material) -> Self {
-        Cube {
-            center,
-            size,
-            material,
-        }
+        
+
+        // Return the intersect object with the texture color if available
+        Some(Intersect::new(hit_point, normal, t, Material {
+            color, // Use the color obtained from the texture or default material color
+            ..self.material.clone()
+        }))
     }
 }
